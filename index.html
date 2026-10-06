@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  >
+
+  <title>Field Revenue - Live Camera</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #f1f5f9;
+      color: #0f172a;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .container {
+      width: min(700px, 100%);
+      margin: auto;
+      padding: 14px;
+    }
+
+    .header {
+      background: #0f172a;
+      color: white;
+      border-radius: 20px;
+      padding: 20px;
+      margin-bottom: 14px;
+    }
+
+    .header h1 {
+      margin: 0 0 6px;
+      font-size: 22px;
+    }
+
+    .header p {
+      margin: 0;
+      color: #cbd5e1;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .card {
+      background: white;
+      border-radius: 20px;
+      padding: 18px;
+      box-shadow: 0 8px 25px rgba(15, 23, 42, 0.10);
+      margin-bottom: 14px;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 19px;
+    }
+
+    .camera {
+      background: #020617;
+      border-radius: 16px;
+      overflow: hidden;
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+
+    canvas {
+      display: none;
+    }
+
+    .cameraMessage {
+      color: #cbd5e1;
+      text-align: center;
+      padding: 25px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .preview {
+      display: none;
+      width: 100%;
+      margin-top: 12px;
+      border-radius: 14px;
+    }
+
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    .primary {
+      background: #2563eb;
+      color: white;
+    }
+
+    .primary:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+    }
+
+    .secondary {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .success {
+      background: #dcfce7;
+      color: #166534;
+      padding: 13px;
+      border-radius: 12px;
+      margin-top: 12px;
+      font-weight: 700;
+      display: none;
+    }
+
+    .error {
+      background: #fee2e2;
+      color: #991b1b;
+      padding: 13px;
+      border-radius: 12px;
+      margin-top: 12px;
+      font-weight: 700;
+      display: none;
+    }
+
+    .gpsBox {
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 12px;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .infoBox {
+      background: #eff6ff;
+      color: #1e3a8a;
+      padding: 13px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.6;
+      margin-bottom: 14px;
+    }
+
+    .stamp {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      color: white;
+      background: rgba(0,0,0,0.65);
+      border-radius: 10px;
+      padding: 9px;
+      font-size: 11px;
+      line-height: 1.5;
+      display: none;
+      z-index: 5;
+    }
+
+    .waiting {
+      text-align: center;
+      padding: 15px;
+      color: #64748b;
+      font-size: 13px;
+    }
+
+    .footer {
+      text-align: center;
+      color: #64748b;
+      font-size: 11px;
+      padding: 8px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="header">
+    <h1>Field Revenue Attendance</h1>
+    <p>Live Camera Verification</p>
+  </div>
+
+  <div class="card">
+
+    <div class="infoBox">
+      Please allow <b>Camera</b> and <b>Location</b> permissions.
+      Only live camera capture is used. Gallery/file upload is not provided.
+    </div>
+
+    <h2>Live Picture</h2>
+
+    <div class="camera">
+
+      <video
+        id="video"
+        autoplay
+        playsinline
+        muted
+      ></video>
+
+      <div id="cameraMessage" class="cameraMessage">
+        Camera is not started yet.<br>
+        Press <b>Start Live Camera</b>.
+      </div>
+
+      <div id="stamp" class="stamp"></div>
+
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <img
+      id="preview"
+      class="preview"
+      alt="Captured live picture"
+    >
+
+    <button
+      id="startButton"
+      class="primary"
+      onclick="startCamera()"
+    >
+      📷 Start Live Camera
+    </button>
+
+    <button
+      id="captureButton"
+      class="primary"
+      onclick="capturePhoto()"
+      style="display:none"
+    >
+      📸 Capture Live Picture
+    </button>
+
+    <button
+      id="retakeButton"
+      class="secondary"
+      onclick="retakePhoto()"
+      style="display:none"
+    >
+      🔄 Retake Picture
+    </button>
+
+    <div id="cameraSuccess" class="success">
+      Live picture captured successfully.
+    </div>
+
+    <div id="cameraError" class="error"></div>
+
+  </div>
+
+
+  <div class="card">
+
+    <h2>Live GPS Location</h2>
+
+    <div id="gpsBox" class="gpsBox">
+      Location has not been captured yet.
+    </div>
+
+    <button
+      id="gpsButton"
+      class="secondary"
+      onclick="captureGPS()"
+    >
+      📍 Capture Live GPS
+    </button>
+
+  </div>
+
+
+  <div class="card">
+
+    <button
+      id="sendButton"
+      class="primary"
+      onclick="sendResult()"
+      disabled
+    >
+      ✅ Continue Attendance
+    </button>
+
+    <div id="waiting" class="waiting">
+      Capture both live picture and GPS before continuing.
+    </div>
+
+  </div>
+
+  <div class="footer">
+    Field Revenue Staff Attendance System
+  </div>
+
+</div>
+
+
+<script>
+
+  let state = {
+    stream: null,
+    photoData: null,
+    gps: null,
+    context: null
+  };
+
+
+  const $ = id => document.getElementById(id);
+
+
+  /*
+   * Receive attendance information from the
+   * Google Apps Script attendance page.
+   *
+   * The main Attendance page will send:
+   *
+   * {
+   *   type: "attendance-camera-init",
+   *   token: "...",
+   *   patwari: "...",
+   *   office: "...",
+   *   address: "..."
+   * }
+   */
+
+  window.addEventListener("message", function(event) {
+
+    const data = event.data;
+
+    if (!data || data.type !== "attendance-camera-init") {
+      return;
+    }
+
+    state.context = data;
+
+    console.log("Attendance context received.");
+
+  });
+
+
+  /*
+   * START LIVE CAMERA
+   */
+
+  async function startCamera() {
+
+    hideError();
+
+    try {
+
+      if (!navigator.mediaDevices ||
+          !navigator.mediaDevices.getUserMedia) {
+
+        throw new Error(
+          "Live camera is not supported by this browser."
+        );
+
+      }
+
+
+      state.stream =
+        await navigator.mediaDevices.getUserMedia({
+
+          video: {
+            facingMode: {
+              ideal: "environment"
+            },
+
+            width: {
+              ideal: 1280
+            },
+
+            height: {
+              ideal: 960
+            }
+          },
+
+          audio: false
+
+        });
+
+
+      const video = $("video");
+
+      video.srcObject = state.stream;
+
+      video.style.display = "block";
+
+      $("cameraMessage").style.display = "none";
+
+      $("startButton").style.display = "none";
+
+      $("captureButton").style.display = "block";
+
+    }
+
+    catch (error) {
+
+      console.error(error);
+
+      showError(
+        "Camera permission nahi mili. " +
+        "Browser mein Camera permission Allow karein. " +
+        "Agar permission already denied hai to browser settings se Camera Allow karein."
+      );
+
+    }
+
+  }
+
+
+  /*
+   * CAPTURE LIVE PHOTO
+   */
+
+  function capturePhoto() {
+
+    hideError();
+
+    if (!state.stream) {
+
+      showError("Please start the live camera first.");
+
+      return;
+
+    }
+
+
+    const video = $("video");
+    const canvas = $("canvas");
+
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+
+    if (!width || !height) {
+
+      showError(
+        "Camera image abhi ready nahi hai. Thori dair baad dobara try karein."
+      );
+
+      return;
+
+    }
+
+
+    canvas.width = width;
+    canvas.height = height;
+
+
+    const ctx = canvas.getContext("2d");
+
+    ctx.drawImage(
+      video,
+      0,
+      0,
+      width,
+      height
+    );
+
+
+    /*
+     * Add timestamp + GPS information directly
+     * onto captured image.
+     */
+
+    const now = new Date();
+
+    const dateText =
+      now.toLocaleDateString(
+        "en-GB",
+        {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric"
+        }
+      );
+
+
+    const timeText =
+      now.toLocaleTimeString(
+        "en-US",
+        {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true
+        }
+      );
+
+
+    const gpsText = state.gps
+      ? "GPS: " +
+        state.gps.latitude.toFixed(6) +
+        ", " +
+        state.gps.longitude.toFixed(6)
+      : "GPS: Captured separately";
+
+
+    /*
+     * Dark stamp background
+     */
+
+    const stampHeight = 82;
+
+    ctx.fillStyle = "rgba(0,0,0,0.70)";
+
+    ctx.fillRect(
+      0,
+      height - stampHeight,
+      width,
+      stampHeight
+    );
+
+
+    ctx.fillStyle = "#ffffff";
+
+    ctx.font = "bold 22px Arial";
+
+    ctx.fillText(
+      "FIELD REVENUE ATTENDANCE",
+      18,
+      height - 56
+    );
+
+
+    ctx.font = "18px Arial";
+
+    ctx.fillText(
+      dateText + "  " + timeText,
+      18,
+      height - 32
+    );
+
+
+    ctx.font = "15px Arial";
+
+    ctx.fillText(
+      gpsText,
+      18,
+      height - 12
+    );
+
+
+    state.photoData =
+      canvas.toDataURL(
+        "image/jpeg",
+        0.88
+      );
+
+
+    $("preview").src = state.photoData;
+
+    $("preview").style.display = "block";
+
+    $("captureButton").style.display = "none";
+
+    $("retakeButton").style.display = "block";
+
+    $("cameraSuccess").style.display = "block";
+
+
+    stopCamera();
+
+    updateContinueButton();
+
+  }
+
+
+  /*
+   * RETAKE
+   */
+
+  function retakePhoto() {
+
+    state.photoData = null;
+
+    $("preview").style.display = "none";
+
+    $("retakeButton").style.display = "none";
+
+    $("cameraSuccess").style.display = "none";
+
+    $("startButton").style.display = "block";
+
+    updateContinueButton();
+
+  }
+
+
+  /*
+   * STOP CAMERA
+   */
+
+  function stopCamera() {
+
+    if (state.stream) {
+
+      state.stream
+        .getTracks()
+        .forEach(track => track.stop());
+
+      state.stream = null;
+
+    }
+
+  }
+
+
+  /*
+   * LIVE GPS
+   */
+
+  function captureGPS() {
+
+    hideError();
+
+    if (!navigator.geolocation) {
+
+      showError(
+        "GPS/location browser mein supported nahi hai."
+      );
+
+      return;
+
+    }
+
+
+    $("gpsBox").innerHTML =
+      "📍 Getting live location...";
+
+
+    navigator.geolocation.getCurrentPosition(
+
+      function(position) {
+
+        const latitude =
+          position.coords.latitude;
+
+        const longitude =
+          position.coords.longitude;
+
+        const accuracy =
+          position.coords.accuracy;
+
+
+        state.gps = {
+
+          latitude: latitude,
+
+          longitude: longitude,
+
+          accuracy: accuracy
+
+        };
+
+
+        const mapsUrl =
+          "https://www.google.com/maps?q=" +
+          encodeURIComponent(
+            latitude + "," + longitude
+          );
+
+
+        $("gpsBox").innerHTML =
+
+          "<b>GPS Captured Successfully</b><br>" +
+
+          "Latitude: " +
+          latitude.toFixed(6) +
+          "<br>" +
+
+          "Longitude: " +
+          longitude.toFixed(6) +
+          "<br>" +
+
+          "Accuracy: " +
+          Math.round(accuracy) +
+          " meters<br>" +
+
+          '<a href="' +
+          mapsUrl +
+          '" target="_blank">' +
+          "Open Google Maps" +
+          "</a>";
+
+
+        updateContinueButton();
+
+      },
+
+      function(error) {
+
+        console.error(error);
+
+        $("gpsBox").innerHTML =
+          "Location permission nahi mili.";
+
+        showError(
+          "GPS permission Allow karein aur dobara try karein."
+        );
+
+      },
+
+      {
+        enableHighAccuracy: true,
+
+        timeout: 20000,
+
+        maximumAge: 0
+
+      }
+
+    );
+
+  }
+
+
+  /*
+   * ENABLE CONTINUE BUTTON
+   */
+
+  function updateContinueButton() {
+
+    const ready =
+      !!state.photoData &&
+      !!state.gps;
+
+
+    $("sendButton").disabled =
+      !ready;
+
+
+    if (ready) {
+
+      $("waiting").innerHTML =
+        "✓ Live picture and GPS ready. You can continue.";
+
+    }
+
+  }
+
+
+  /*
+   * SEND RESULT BACK TO APPS SCRIPT PAGE
+   */
+
+  function sendResult() {
+
+    if (!state.photoData) {
+
+      showError(
+        "Please capture live picture first."
+      );
+
+      return;
+
+    }
+
+
+    if (!state.gps) {
+
+      showError(
+        "Please capture live GPS first."
+      );
+
+      return;
+
+    }
+
+
+    const result = {
+
+      type: "attendance-camera-result",
+
+      token:
+        state.context &&
+        state.context.token
+          ? state.context.token
+          : null,
+
+      photoData:
+        state.photoData,
+
+      latitude:
+        state.gps.latitude,
+
+      longitude:
+        state.gps.longitude,
+
+      accuracy:
+        state.gps.accuracy
+
+    };
+
+
+    /*
+     * Send captured data back to the
+     * Google Apps Script attendance page.
+     */
+
+    if (window.opener) {
+
+      window.opener.postMessage(
+        result,
+        "*"
+      );
+
+      $("sendButton").disabled = true;
+
+      $("sendButton").innerHTML =
+        "✓ Sent — Returning to Attendance";
+
+      $("waiting").innerHTML =
+        "Live picture and GPS sent successfully.";
+
+      setTimeout(
+        function() {
+
+          window.close();
+
+        },
+        700
+      );
+
+    }
+
+    else {
+
+      showError(
+        "Attendance page se camera page open nahi hua."
+      );
+
+    }
+
+  }
+
+
+  /*
+   * ERROR
+   */
+
+  function showError(message) {
+
+    $("cameraError").textContent =
+      message;
+
+    $("cameraError").style.display =
+      "block";
+
+  }
+
+
+  function hideError() {
+
+    $("cameraError").style.display =
+      "none";
+
+  }
+
+
+  /*
+   * Stop camera when page closes.
+   */
+
+  window.addEventListener(
+    "beforeunload",
+    stopCamera
+  );
+
+</script>
+
+</body>
+</html>
