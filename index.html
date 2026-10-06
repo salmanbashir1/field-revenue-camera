@@ -231,21 +231,11 @@
       📸 Capture Live Picture
     </button>
 
-    <button
-      id="retakeButton"
-      class="secondary"
-      onclick="retakePhoto()"
-      style="display:none">
-      🔄 Retake Picture
-    </button>
-
-    <div id="cameraSuccess" class="success">
+<div id="cameraSuccess" class="success">
       Live picture captured successfully.
     </div>
 
-    <div id="cameraError" class="error"></div>
-
-  </div>
+</div>
 
   <div class="card">
 
@@ -255,32 +245,11 @@
       Location has not been captured yet.
     </div>
 
-    <button
-      id="gpsButton"
-      class="secondary"
-      onclick="captureGPS()">
-      📍 Capture Live GPS
-    </button>
+    <div id="waiting" class="waiting">GPS is being captured automatically.</div>
 
-  </div>
+</div>
 
-  <div class="card">
-
-    <button
-      id="sendButton"
-      class="primary"
-      onclick="sendResult()"
-      disabled>
-      ✅ Continue Attendance
-    </button>
-
-    <div id="waiting" class="waiting">
-      Capture both live picture and GPS before continuing.
-    </div>
-
-  </div>
-
-  <div class="footer">
+<div class="footer">
     Field Revenue Staff Attendance System
   </div>
 
@@ -296,7 +265,8 @@
 
     // user = front camera
     // environment = back camera
-    cameraMode: "user"
+    cameraMode: "user",
+    submitted: false
   };
 
   const $ = id => document.getElementById(id);
@@ -722,6 +692,7 @@
     stopCamera();
 
     updateContinueButton();
+    maybeSubmit();
 
   }
 
@@ -730,36 +701,8 @@
    * RETAKE PHOTO
    */
 
-  function retakePhoto() {
+  function retakePhoto(){ startCamera(); }
 
-    state.photoData = null;
-
-    $("preview").style.display =
-      "none";
-
-    $("retakeButton").style.display =
-      "none";
-
-    $("cameraSuccess").style.display =
-      "none";
-
-    $("startButton").style.display =
-      "block";
-
-    $("switchButton").style.display =
-      "none";
-
-    $("captureButton").style.display =
-      "none";
-
-    updateContinueButton();
-
-  }
-
-
-  /*
-   * STOP CAMERA
-   */
 
   function stopCamera() {
 
@@ -851,6 +794,7 @@
           "</a>";
 
         updateContinueButton();
+        maybeSubmit();
 
       },
 
@@ -913,100 +857,80 @@
    * SEND RESULT BACK TO APPS SCRIPT
    */
 
-  function sendResult() {
+  function submitToAttendanceServer(){
 
-    if (!state.photoData) {
+  if(state.submitted) return;
 
-      showError(
-        "Please capture live picture first."
-      );
+  if(!state.photoData || !state.gps) return;
 
-      return;
+  const params = new URLSearchParams(window.location.search);
 
-    }
+  const token = params.get('token') || '';
+  const gasUrl = params.get('gas') || '';
 
-    if (!state.gps) {
-
-      showError(
-        "Please capture live GPS first."
-      );
-
-      return;
-
-    }
-
-    const result = {
-
-      type:
-        "attendance-camera-result",
-
-      token:
-        state.context &&
-        state.context.token
-          ? state.context.token
-          : null,
-
-      photoData:
-        state.photoData,
-
-      latitude:
-        state.gps.latitude,
-
-      longitude:
-        state.gps.longitude,
-
-      accuracy:
-        state.gps.accuracy
-
-    };
-
-
-    /*
-     * Send captured data to the
-     * Google Apps Script attendance page.
-     */
-
-    if (window.opener) {
-
-      window.opener.postMessage(
-        result,
-        "*"
-      );
-
-      $("sendButton").disabled =
-        true;
-
-      $("sendButton").innerHTML =
-        "✓ Sent — Returning to Attendance";
-
-      $("waiting").innerHTML =
-        "Live picture and GPS sent successfully.";
-
-      setTimeout(
-        function() {
-
-          window.close();
-
-        },
-        700
-      );
-
-    } else {
-
-      showError(
-        "Attendance page se camera page open nahi hua."
-      );
-
-    }
-
+  if(!token || !gasUrl){
+    showError(
+      'Camera session information is missing. Please reopen Live Camera from Attendance.'
+    );
+    return;
   }
 
+  state.submitted = true;
 
-  /*
-   * ERROR DISPLAY
-   */
+  $('waiting').textContent =
+    '✓ Live picture + GPS captured. Submitting attendance automatically…';
 
-  function showError(message) {
+  $('cameraSuccess').textContent =
+    '✓ Live picture captured. Attendance is being submitted…';
+
+  $('cameraSuccess').style.display = 'block';
+
+  const form = document.createElement('form');
+
+  form.method = 'POST';
+  form.action = gasUrl;
+  form.target = '_self';
+  form.style.display = 'none';
+
+  const fields = {
+    cameraToken: token,
+    photoData: state.photoData,
+    latitude: String(state.gps.latitude),
+    longitude: String(state.gps.longitude),
+    accuracy: String(state.gps.accuracy)
+  };
+
+  Object.keys(fields).forEach(key => {
+
+    const input = document.createElement('input');
+
+    input.type = 'hidden';
+    input.name = key;
+    input.value = fields[key];
+
+    form.appendChild(input);
+
+  });
+
+  document.body.appendChild(form);
+  form.submit();
+}
+
+
+function maybeSubmit(){
+
+  if(
+    state.photoData &&
+    state.gps &&
+    !state.submitted
+  ){
+    submitToAttendanceServer();
+  }
+
+}
+
+
+function showError(message) {
 
     $("cameraError").textContent =
       message;
@@ -1033,6 +957,9 @@
     "beforeunload",
     stopCamera
   );
+
+  // GPS starts automatically; there is no GPS button.
+  captureGPS();
 
 
   /*
