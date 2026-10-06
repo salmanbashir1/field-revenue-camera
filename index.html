@@ -2,18 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, viewport-fit=cover"
-  >
-
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Field Revenue - Live Camera</title>
 
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -80,9 +73,7 @@
       display: none;
     }
 
-    canvas {
-      display: none;
-    }
+    canvas { display: none; }
 
     .cameraMessage {
       color: #cbd5e1;
@@ -109,6 +100,8 @@
       cursor: pointer;
       margin-top: 10px;
     }
+
+    button:active { transform: scale(0.99); }
 
     .primary {
       background: #2563eb;
@@ -164,21 +157,6 @@
       margin-bottom: 14px;
     }
 
-    .stamp {
-      position: absolute;
-      left: 10px;
-      right: 10px;
-      bottom: 10px;
-      color: white;
-      background: rgba(0,0,0,0.65);
-      border-radius: 10px;
-      padding: 9px;
-      font-size: 11px;
-      line-height: 1.5;
-      display: none;
-      z-index: 5;
-    }
-
     .waiting {
       text-align: center;
       padding: 15px;
@@ -209,50 +187,47 @@
     <div class="infoBox">
       Please allow <b>Camera</b> and <b>Location</b> permissions.
       Only live camera capture is used. Gallery/file upload is not provided.
+      <br><br>
+      <b>Default camera:</b> Front camera
     </div>
 
     <h2>Live Picture</h2>
 
     <div class="camera">
 
-      <video
-        id="video"
-        autoplay
-        playsinline
-        muted
-      ></video>
+      <video id="video" autoplay playsinline muted></video>
 
       <div id="cameraMessage" class="cameraMessage">
         Camera is not started yet.<br>
         Press <b>Start Live Camera</b>.
       </div>
 
-      <div id="stamp" class="stamp"></div>
-
     </div>
 
     <canvas id="canvas"></canvas>
 
-    <img
-      id="preview"
-      class="preview"
-      alt="Captured live picture"
-    >
+    <img id="preview" class="preview" alt="Captured live picture">
 
     <button
       id="startButton"
       class="primary"
-      onclick="startCamera()"
-    >
+      onclick="startCamera()">
       📷 Start Live Camera
+    </button>
+
+    <button
+      id="switchButton"
+      class="secondary"
+      onclick="switchCamera()"
+      style="display:none">
+      🔄 Switch to Back Camera
     </button>
 
     <button
       id="captureButton"
       class="primary"
       onclick="capturePhoto()"
-      style="display:none"
-    >
+      style="display:none">
       📸 Capture Live Picture
     </button>
 
@@ -260,8 +235,7 @@
       id="retakeButton"
       class="secondary"
       onclick="retakePhoto()"
-      style="display:none"
-    >
+      style="display:none">
       🔄 Retake Picture
     </button>
 
@@ -272,7 +246,6 @@
     <div id="cameraError" class="error"></div>
 
   </div>
-
 
   <div class="card">
 
@@ -285,13 +258,11 @@
     <button
       id="gpsButton"
       class="secondary"
-      onclick="captureGPS()"
-    >
+      onclick="captureGPS()">
       📍 Capture Live GPS
     </button>
 
   </div>
-
 
   <div class="card">
 
@@ -299,8 +270,7 @@
       id="sendButton"
       class="primary"
       onclick="sendResult()"
-      disabled
-    >
+      disabled>
       ✅ Continue Attendance
     </button>
 
@@ -316,16 +286,18 @@
 
 </div>
 
-
 <script>
 
   let state = {
     stream: null,
     photoData: null,
     gps: null,
-    context: null
-  };
+    context: null,
 
+    // user = front camera
+    // environment = back camera
+    cameraMode: "user"
+  };
 
   const $ = id => document.getElementById(id);
 
@@ -334,8 +306,7 @@
    * Receive attendance information from the
    * Google Apps Script attendance page.
    *
-   * The main Attendance page will send:
-   *
+   * Expected message:
    * {
    *   type: "attendance-camera-init",
    *   token: "...",
@@ -361,7 +332,9 @@
 
 
   /*
-   * START LIVE CAMERA
+   * START CAMERA
+   *
+   * Default is FRONT camera.
    */
 
   async function startCamera() {
@@ -376,16 +349,17 @@
         throw new Error(
           "Live camera is not supported by this browser."
         );
-
       }
 
+      // Stop previous camera before switching.
+      stopCamera();
 
       state.stream =
         await navigator.mediaDevices.getUserMedia({
 
           video: {
             facingMode: {
-              ideal: "environment"
+              exact: state.cameraMode
             },
 
             width: {
@@ -397,10 +371,10 @@
             }
           },
 
+          // No microphone is requested.
           audio: false
 
         });
-
 
       const video = $("video");
 
@@ -414,17 +388,158 @@
 
       $("captureButton").style.display = "block";
 
+      $("switchButton").style.display = "block";
+
+      updateSwitchButton();
+
     }
 
     catch (error) {
 
-      console.error(error);
+      console.error("Exact camera request failed:", error);
+
+      /*
+       * Fallback for phones that do not accept exact
+       * facingMode constraints.
+       */
+
+      try {
+
+        stopCamera();
+
+        state.stream =
+          await navigator.mediaDevices.getUserMedia({
+
+            video: {
+              facingMode: {
+                ideal: state.cameraMode
+              },
+
+              width: {
+                ideal: 1280
+              },
+
+              height: {
+                ideal: 960
+              }
+            },
+
+            audio: false
+
+          });
+
+        const video = $("video");
+
+        video.srcObject = state.stream;
+
+        video.style.display = "block";
+
+        $("cameraMessage").style.display = "none";
+
+        $("startButton").style.display = "none";
+
+        $("captureButton").style.display = "block";
+
+        $("switchButton").style.display = "block";
+
+        updateSwitchButton();
+
+      }
+
+      catch (secondError) {
+
+        console.error("Fallback camera request failed:", secondError);
+
+        let message =
+          "Camera open nahi ho saka. ";
+
+        if (secondError.name === "NotAllowedError") {
+
+          message +=
+            "Chrome Site Settings mein Camera ko Allow karein.";
+
+        } else if (secondError.name === "NotFoundError") {
+
+          message +=
+            "Is device par selected camera available nahi hai.";
+
+        } else if (secondError.name === "NotReadableError") {
+
+          message +=
+            "Camera kisi aur app/browser mein use ho raha hai.";
+
+        } else {
+
+          message +=
+            "Browser camera permission/settings check karein.";
+
+        }
+
+        showError(message);
+
+      }
+
+    }
+
+  }
+
+
+  /*
+   * SWITCH CAMERA
+   *
+   * Front -> Back
+   * Back -> Front
+   */
+
+  async function switchCamera() {
+
+    hideError();
+
+    const oldMode = state.cameraMode;
+
+    state.cameraMode =
+      oldMode === "user"
+        ? "environment"
+        : "user";
+
+    try {
+
+      await startCamera();
+
+    }
+
+    catch (error) {
+
+      state.cameraMode = oldMode;
 
       showError(
-        "Camera permission nahi mili. " +
-        "Browser mein Camera permission Allow karein. " +
-        "Agar permission already denied hai to browser settings se Camera Allow karein."
+        "Selected camera available nahi hai."
       );
+
+    }
+
+  }
+
+
+  /*
+   * SWITCH BUTTON LABEL
+   */
+
+  function updateSwitchButton() {
+
+    const button = $("switchButton");
+
+    if (!button) return;
+
+    if (state.cameraMode === "user") {
+
+      button.innerHTML =
+        "🔄 Switch to Back Camera";
+
+    } else {
+
+      button.innerHTML =
+        "🔄 Switch to Front Camera";
 
     }
 
@@ -441,12 +556,13 @@
 
     if (!state.stream) {
 
-      showError("Please start the live camera first.");
+      showError(
+        "Please start the live camera first."
+      );
 
       return;
 
     }
-
 
     const video = $("video");
     const canvas = $("canvas");
@@ -464,25 +580,50 @@
 
     }
 
-
     canvas.width = width;
     canvas.height = height;
 
-
     const ctx = canvas.getContext("2d");
 
-    ctx.drawImage(
-      video,
-      0,
-      0,
-      width,
-      height
-    );
+    /*
+     * Mirror only the FRONT camera preview/photo.
+     *
+     * This makes the captured front-camera image
+     * natural for a person looking at the screen.
+     */
+
+    if (state.cameraMode === "user") {
+
+      ctx.save();
+
+      ctx.translate(width, 0);
+      ctx.scale(-1, 1);
+
+      ctx.drawImage(
+        video,
+        0,
+        0,
+        width,
+        height
+      );
+
+      ctx.restore();
+
+    } else {
+
+      ctx.drawImage(
+        video,
+        0,
+        0,
+        width,
+        height
+      );
+
+    }
 
 
     /*
-     * Add timestamp + GPS information directly
-     * onto captured image.
+     * Timestamp + GPS stamp on photo.
      */
 
     const now = new Date();
@@ -497,7 +638,6 @@
         }
       );
 
-
     const timeText =
       now.toLocaleTimeString(
         "en-US",
@@ -509,7 +649,6 @@
         }
       );
 
-
     const gpsText = state.gps
       ? "GPS: " +
         state.gps.latitude.toFixed(6) +
@@ -517,10 +656,6 @@
         state.gps.longitude.toFixed(6)
       : "GPS: Captured separately";
 
-
-    /*
-     * Dark stamp background
-     */
 
     const stampHeight = 82;
 
@@ -533,7 +668,6 @@
       stampHeight
     );
 
-
     ctx.fillStyle = "#ffffff";
 
     ctx.font = "bold 22px Arial";
@@ -544,7 +678,6 @@
       height - 56
     );
 
-
     ctx.font = "18px Arial";
 
     ctx.fillText(
@@ -552,7 +685,6 @@
       18,
       height - 32
     );
-
 
     ctx.font = "15px Arial";
 
@@ -569,17 +701,23 @@
         0.88
       );
 
+    $("preview").src =
+      state.photoData;
 
-    $("preview").src = state.photoData;
+    $("preview").style.display =
+      "block";
 
-    $("preview").style.display = "block";
+    $("captureButton").style.display =
+      "none";
 
-    $("captureButton").style.display = "none";
+    $("switchButton").style.display =
+      "none";
 
-    $("retakeButton").style.display = "block";
+    $("retakeButton").style.display =
+      "block";
 
-    $("cameraSuccess").style.display = "block";
-
+    $("cameraSuccess").style.display =
+      "block";
 
     stopCamera();
 
@@ -589,20 +727,30 @@
 
 
   /*
-   * RETAKE
+   * RETAKE PHOTO
    */
 
   function retakePhoto() {
 
     state.photoData = null;
 
-    $("preview").style.display = "none";
+    $("preview").style.display =
+      "none";
 
-    $("retakeButton").style.display = "none";
+    $("retakeButton").style.display =
+      "none";
 
-    $("cameraSuccess").style.display = "none";
+    $("cameraSuccess").style.display =
+      "none";
 
-    $("startButton").style.display = "block";
+    $("startButton").style.display =
+      "block";
+
+    $("switchButton").style.display =
+      "none";
+
+    $("captureButton").style.display =
+      "none";
 
     updateContinueButton();
 
@@ -619,7 +767,9 @@
 
       state.stream
         .getTracks()
-        .forEach(track => track.stop());
+        .forEach(
+          track => track.stop()
+        );
 
       state.stream = null;
 
@@ -646,10 +796,8 @@
 
     }
 
-
     $("gpsBox").innerHTML =
       "📍 Getting live location...";
-
 
     navigator.geolocation.getCurrentPosition(
 
@@ -664,7 +812,6 @@
         const accuracy =
           position.coords.accuracy;
 
-
         state.gps = {
 
           latitude: latitude,
@@ -675,13 +822,11 @@
 
         };
 
-
         const mapsUrl =
           "https://www.google.com/maps?q=" +
           encodeURIComponent(
             latitude + "," + longitude
           );
-
 
         $("gpsBox").innerHTML =
 
@@ -705,14 +850,16 @@
           "Open Google Maps" +
           "</a>";
 
-
         updateContinueButton();
 
       },
 
       function(error) {
 
-        console.error(error);
+        console.error(
+          "GPS error:",
+          error
+        );
 
         $("gpsBox").innerHTML =
           "Location permission nahi mili.";
@@ -725,11 +872,8 @@
 
       {
         enableHighAccuracy: true,
-
         timeout: 20000,
-
         maximumAge: 0
-
       }
 
     );
@@ -747,15 +891,18 @@
       !!state.photoData &&
       !!state.gps;
 
-
     $("sendButton").disabled =
       !ready;
-
 
     if (ready) {
 
       $("waiting").innerHTML =
         "✓ Live picture and GPS ready. You can continue.";
+
+    } else {
+
+      $("waiting").innerHTML =
+        "Capture both live picture and GPS before continuing.";
 
     }
 
@@ -763,7 +910,7 @@
 
 
   /*
-   * SEND RESULT BACK TO APPS SCRIPT PAGE
+   * SEND RESULT BACK TO APPS SCRIPT
    */
 
   function sendResult() {
@@ -778,7 +925,6 @@
 
     }
 
-
     if (!state.gps) {
 
       showError(
@@ -789,10 +935,10 @@
 
     }
 
-
     const result = {
 
-      type: "attendance-camera-result",
+      type:
+        "attendance-camera-result",
 
       token:
         state.context &&
@@ -816,7 +962,7 @@
 
 
     /*
-     * Send captured data back to the
+     * Send captured data to the
      * Google Apps Script attendance page.
      */
 
@@ -827,7 +973,8 @@
         "*"
       );
 
-      $("sendButton").disabled = true;
+      $("sendButton").disabled =
+        true;
 
       $("sendButton").innerHTML =
         "✓ Sent — Returning to Attendance";
@@ -844,9 +991,7 @@
         700
       );
 
-    }
-
-    else {
+    } else {
 
       showError(
         "Attendance page se camera page open nahi hua."
@@ -858,7 +1003,7 @@
 
 
   /*
-   * ERROR
+   * ERROR DISPLAY
    */
 
   function showError(message) {
@@ -888,6 +1033,13 @@
     "beforeunload",
     stopCamera
   );
+
+
+  /*
+   * Initialize UI.
+   */
+
+  updateSwitchButton();
 
 </script>
 
